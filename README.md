@@ -147,5 +147,114 @@ Go to EC2 console, access security group section and delete security groups crea
 ## Support
 For any queries or issues, please open an issue in the repository.
 
+## Fixed storage drivers for latest K8s
+✅ CORRECT FIX (EKS Way)
+
+You must install the AWS EBS CSI Driver and use ebs.csi.aws.com.
+
+🚀 Step 1: Install EBS CSI Driver (REQUIRED)
+
+Run this (recommended for EKS):
+
+eksctl utils associate-iam-oidc-provider \
+  --region us-east-1 \
+  --cluster <your-cluster-name> \
+  --approve
+
+
+Then install the addon:
+
+eksctl create addon \
+  --name aws-ebs-csi-driver \
+  --cluster <your-cluster-name> \
+  --region us-east-1
+
+
+✅ This installs the controller + node drivers
+
+Verify:
+
+kubectl get pods -n kube-system | grep ebs
+
+
+You should see:
+
+ebs-csi-controller-xxxx   Running
+ebs-csi-node-xxxx         Running
+
+🔧 Step 2: Create a CSI-based StorageClass (IMPORTANT)
+
+Create gp2-csi.yaml:
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp2-csi
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp2
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+
+
+Apply it:
+
+kubectl apply -f gp2-csi.yaml
+
+🧹 Step 3: Recreate PVC (MANDATORY)
+
+Delete old PVC:
+
+kubectl delete pvc mongo-volume-claim -n three-tier
+
+
+Update mongo-pvc.yaml:
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-volume-claim
+  namespace: three-tier
+spec:
+  storageClassName: gp2-csi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+
+Apply:
+
+kubectl apply -f mongo-pvc.yaml
+
+🔄 Step 4: Restart MongoDB Pod
+kubectl delete pod -n three-tier -l app=mongodb
+
+
+Watch it live:
+
+kubectl get pods -n three-tier -w
+
+
+You will now see:
+
+Pending → ContainerCreating → Running
+
+✅ Final Verification
+kubectl get pvc -n three-tier
+kubectl get pods -n three-tier
+
+
+Expected:
+
+mongo-volume-claim   Bound
+mongodb-xxxxx        1/1 Running
+
+
+## No need hosts in Values 
+
+You can add backend-service in frontend and frontend services in Ingress with extra port 80
 ---
 Happy Learning! 🚀👨‍💻👩‍💻
