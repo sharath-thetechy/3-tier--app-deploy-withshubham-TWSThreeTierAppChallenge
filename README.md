@@ -253,8 +253,7 @@ mongo-volume-claim   Bound
 mongodb-xxxxx        1/1 Running
 
 
-## No need hosts in Values 
+## No need doamin in Values i added backend service
 
-You can add backend-service in frontend and frontend services in Ingress with extra port 80
 ---
 Happy Learning! 🚀👨‍💻👩‍💻
